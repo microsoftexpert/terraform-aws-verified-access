@@ -15,8 +15,8 @@
 - 🔒 **One instance, fully wired.** Creates `aws_verifiedaccess_instance` plus everything meaningless without it: trust provider(s) (identity and/or device), the instance-to-trust-provider attachment(s), Cedar-policy access group(s), and per-application endpoint(s).
 - 🧑‍💻 **Identity AND device trust.** Each `trust_providers` entry is `user` (OIDC or IAM Identity Center) or `device` (Jamf, CrowdStrike, or JumpCloud) — mix both to require a compliant device *and* an authenticated user before granting access.
 - 🚫 **Fail-closed by design.** AWS's own Verified Access behavior denies access when a group/endpoint has no `policy_document` — this module relies on that native default rather than re-implementing a synthetic "deny all," so there is no accidental "wide open" starting state.
-- 🪵 **Access logging on by default.** `logging_configuration.enabled = true` forces an explicit choice: wire a CloudWatch Logs / Kinesis Data Firehose / S3 destination, or consciously opt out — mirroring `tf-mod-aws-lb`'s `access_logs` pattern. `include_trust_context = true` bakes device/identity claims into every log line for investigative auditability.
-- 🌐 **Two application-facing endpoint patterns.** `endpoint_type = "load-balancer"` fronts an ALB (wire from `tf-mod-aws-lb`); `endpoint_type = "network-interface"` fronts a single ENI (wire from `tf-mod-aws-network-interface`). `cidr`/`rds` endpoint variants exist in the live schema but are a documented, deliberate out-of-scope for this module today.
+- 🪵 **Access logging on by default.** `logging_configuration.enabled = true` forces an explicit choice: wire a CloudWatch Logs / Kinesis Data Firehose / S3 destination, or consciously opt out — mirroring `terraform-aws-lb`'s `access_logs` pattern. `include_trust_context = true` bakes device/identity claims into every log line for investigative auditability.
+- 🌐 **Two application-facing endpoint patterns.** `endpoint_type = "load-balancer"` fronts an ALB (wire from `terraform-aws-lb`); `endpoint_type = "network-interface"` fronts a single ENI (wire from `terraform-aws-network-interface`). `cidr`/`rds` endpoint variants exist in the live schema but are a documented, deliberate out-of-scope for this module today.
 - 🔑 **Cedar policies, not IAM JSON.** `policy_document` on both groups and endpoints is Cedar — the same language behind Amazon Verified Permissions. Terraform cannot lint Cedar; validate every policy in the AWS console policy validator before applying.
 - 🧱 **Deeply-typed, key-addressed children.** Trust providers, groups, and endpoints are each `map(object(...))` keyed by a stable caller string — endpoints resolve to a group *by key* (`verified_access_group_key`), and trust-provider attachments are rendered 1:1 from the same keys as `trust_providers`, so there is no manual ARN/ID threading.
 - 🏷️ **Tags everywhere taggable.** `var.tags` merges with provider `default_tags`, flows to the instance, trust providers, groups, and endpoints, and is surfaced as `tags_all`. (The instance-trust-provider attachment and the logging configuration are **not** taggable — AWS limitation.)
@@ -39,19 +39,19 @@ Whether it's a star, a professional connection, or a coffee, every gesture helps
 
 ## 🗺️ Where this fits in the family
 
-`tf-mod-aws-verified-access` sits at the network-access **edge** — it consumes ACM, VPC/security-group, KMS, ALB, ENI, and log-destination inputs from upstream siblings, and feeds DNS (CNAME target) and IAM policy conditions downstream. Nothing in the Phase 1-7 catalog depends on it structurally, the same terminal position CloudFront and WAFv2 occupy.
+`terraform-aws-verified-access` sits at the network-access **edge** — it consumes ACM, VPC/security-group, KMS, ALB, ENI, and log-destination inputs from upstream siblings, and feeds DNS (CNAME target) and IAM policy conditions downstream. Nothing in the Phase 1-7 catalog depends on it structurally, the same terminal position CloudFront and WAFv2 occupy.
 
 ```mermaid
 flowchart LR
- acm["tf-mod-aws-acm<br/>domain_certificate_arn (regional)"]
- lb["tf-mod-aws-lb<br/>load_balancer_arn"]
- vpc["tf-mod-aws-vpc<br/>subnet_ids"]
- sg["tf-mod-aws-security-group<br/>security_group_ids"]
- eni["tf-mod-aws-network-interface<br/>network_interface_id"]
- kms["tf-mod-aws-kms<br/>kms_key_arn (CMK)"]
- cwlg["tf-mod-aws-cloudwatch-log-group<br/>log_group"]
- va["tf-mod-aws-verified-access"]
- r53["tf-mod-aws-route53-zone<br/>CNAME target"]
+ acm["terraform-aws-acm<br/>domain_certificate_arn (regional)"]
+ lb["terraform-aws-lb<br/>load_balancer_arn"]
+ vpc["terraform-aws-vpc<br/>subnet_ids"]
+ sg["terraform-aws-security-group<br/>security_group_ids"]
+ eni["terraform-aws-network-interface<br/>network_interface_id"]
+ kms["terraform-aws-kms<br/>kms_key_arn (CMK)"]
+ cwlg["terraform-aws-cloudwatch-log-group<br/>log_group"]
+ va["terraform-aws-verified-access"]
+ r53["terraform-aws-route53-zone<br/>CNAME target"]
  iam["IAM policy conditions<br/>(group ARN)"]
 
  acm -->|"domain_certificate_arn"| va
@@ -73,7 +73,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
- subgraph mod["tf-mod-aws-verified-access"]
+ subgraph mod["terraform-aws-verified-access"]
  inst["aws_verifiedaccess_instance.this<br/>(keystone)<br/>fips_enabled · custom subdomain"]
  tp["aws_verifiedaccess_trust_provider.this<br/>for_each trust_providers<br/>user (OIDC/IdC) or device (Jamf/CrowdStrike/JumpCloud)"]
  att["aws_verifiedaccess_instance_trust_provider_attachment.this<br/>for_each trust_providers<br/>(1:1 join)"]
@@ -153,14 +153,14 @@ Least-privilege actions the **Terraform execution identity** needs. Verified Acc
 - **Cedar policy language.** `policy_document` on both groups and endpoints is Cedar, not IAM JSON. Test policies in the Verified Access / Verified Permissions console policy validator (or the `cedar` CLI) before committing them here — a syntactically valid but semantically wrong policy still applies cleanly.
 - **No region constraint.** Verified Access is regional; there is no us-east-1 requirement (unlike CloudFront/WAFv2/ACM-for-CloudFront).
 - **Quotas** (soft, raisable via Service Quotas): 10 Verified Access instances per account/Region; 5 trust providers per instance; 10 groups per instance; 150 endpoints per instance.
-- **DNS delegation.** The generated `endpoint_domain` needs a CNAME from the caller's own `application_domain` — provisioned in `tf-mod-aws-route53-zone`, not here.
+- **DNS delegation.** The generated `endpoint_domain` needs a CNAME from the caller's own `application_domain` — provisioned in `terraform-aws-route53-zone`, not here.
 
 ---
 
 ## 📁 Module Structure
 
 ```
-tf-mod-aws-verified-access/
+terraform-aws-verified-access/
 ├── providers.tf # required_providers (aws >= 6.0, < 7.0); region/provider wiring notes; no provider block
 ├── variables.tf # instance identity → trust_providers → groups → endpoints → logging_configuration → tags → timeouts
 ├── main.tf # aws_verifiedaccess_instance.this + trust_provider / attachment / group / endpoint / logging_configuration for_each
@@ -177,7 +177,7 @@ Smallest working call — an OIDC-trusted instance fronting one internal applica
 
 ```hcl
 module "verified_access" {
-  source = "git::https://github.com/microsoftexpert/tf-mod-aws-verified-access?ref=v1.0.0"
+  source = "git::https://github.com/microsoftexpert/terraform-aws-verified-access?ref=v1.0.0"
 
   instance_description = "core-ztna"
 
@@ -212,21 +212,21 @@ module "verified_access" {
     app = {
       endpoint_type             = "load-balancer"
       application_domain        = "app.internal.example.com"
-      domain_certificate_arn    = module.cert.arn # from tf-mod-aws-acm (regional)
+      domain_certificate_arn    = module.cert.arn # from terraform-aws-acm (regional)
       endpoint_domain_prefix    = "app"
-      security_group_ids        = [module.va_endpoint_sg.id] # from tf-mod-aws-security-group
+      security_group_ids        = [module.va_endpoint_sg.id] # from terraform-aws-security-group
       verified_access_group_key = "internal_app"
       load_balancer_options = {
-        load_balancer_arn = module.alb.arn # from tf-mod-aws-lb
+        load_balancer_arn = module.alb.arn # from terraform-aws-lb
         port              = 443
-        subnet_ids        = module.vpc.private_subnet_ids # from tf-mod-aws-vpc
+        subnet_ids        = module.vpc.private_subnet_ids # from terraform-aws-vpc
       }
     }
   }
 
   # logging_configuration.enabled = true by default — a destination is required
   logging_configuration = {
-    cloudwatch_logs = { log_group = module.va_log_group.name } # from tf-mod-aws-cloudwatch-log-group
+    cloudwatch_logs = { log_group = module.va_log_group.name } # from terraform-aws-cloudwatch-log-group
   }
 
   tags = { Environment = "prod", DataClass = "internal" }
@@ -241,13 +241,13 @@ module "verified_access" {
 
 | Input | Type | Source module |
 |---|---|---|
-| `endpoints[*].load_balancer_options.load_balancer_arn` | `string` (ALB ARN) | `tf-mod-aws-lb` |
-| `endpoints[*].load_balancer_options.subnet_ids` | `list(string)` | `tf-mod-aws-vpc` |
-| `endpoints[*].network_interface_options.network_interface_id` | `string` (ENI id) | `tf-mod-aws-network-interface` |
-| `endpoints[*].domain_certificate_arn` | `string` (ACM cert ARN, **regional**) | `tf-mod-aws-acm` |
-| `endpoints[*].security_group_ids` | `list(string)` | `tf-mod-aws-security-group` |
-| `*.sse_configuration`/`sse_specification.kms_key_arn` | `string` (CMK ARN) | `tf-mod-aws-kms` |
-| `logging_configuration.cloudwatch_logs.log_group` | `string` | `tf-mod-aws-cloudwatch-log-group` |
+| `endpoints[*].load_balancer_options.load_balancer_arn` | `string` (ALB ARN) | `terraform-aws-lb` |
+| `endpoints[*].load_balancer_options.subnet_ids` | `list(string)` | `terraform-aws-vpc` |
+| `endpoints[*].network_interface_options.network_interface_id` | `string` (ENI id) | `terraform-aws-network-interface` |
+| `endpoints[*].domain_certificate_arn` | `string` (ACM cert ARN, **regional**) | `terraform-aws-acm` |
+| `endpoints[*].security_group_ids` | `list(string)` | `terraform-aws-security-group` |
+| `*.sse_configuration`/`sse_specification.kms_key_arn` | `string` (CMK ARN) | `terraform-aws-kms` |
+| `logging_configuration.cloudwatch_logs.log_group` | `string` | `terraform-aws-cloudwatch-log-group` |
 
 ### Emits
 
@@ -258,9 +258,9 @@ module "verified_access" {
 | `name_servers` | Instance-level name servers backing CIDR endpoints | DNS diagnostics |
 | `trust_provider_ids` | Map of trust-provider key → id | attachment wiring, audit |
 | `group_ids` | Map of group key → id | endpoint wiring |
-| `group_arns` | Map of group key → ARN (`verifiedaccess_group_arn`) | `tf-mod-aws-kms` grant scoping, IAM policy conditions |
+| `group_arns` | Map of group key → ARN (`verifiedaccess_group_arn`) | `terraform-aws-kms` grant scoping, IAM policy conditions |
 | `endpoint_ids` | Map of endpoint key → id | audit, DNS automation |
-| `endpoint_domains` | Map of endpoint key → generated `endpoint_domain` | `tf-mod-aws-route53-zone` (CNAME target) |
+| `endpoint_domains` | Map of endpoint key → generated `endpoint_domain` | `terraform-aws-route53-zone` (CNAME target) |
 | `endpoint_device_validation_domains` | Map of endpoint key → device-validation domain (null unless a device trust provider is attached) | device-trust vendor DNS validation |
 | `tags_all` | All tags incl. provider `default_tags` (resource tags win) | governance/audit |
 
@@ -275,7 +275,7 @@ module "verified_access" {
 
 ```hcl
 module "verified_access" {
-  source = "git::https://github.com/microsoftexpert/tf-mod-aws-verified-access?ref=v1.0.0"
+  source = "git::https://github.com/microsoftexpert/terraform-aws-verified-access?ref=v1.0.0"
 
   trust_providers = {
     okta = {
@@ -319,7 +319,7 @@ module "verified_access" {
 
 ```hcl
 module "verified_access" {
-  source = "git::https://github.com/microsoftexpert/tf-mod-aws-verified-access?ref=v1.0.0"
+  source = "git::https://github.com/microsoftexpert/terraform-aws-verified-access?ref=v1.0.0"
 
   trust_providers = {
     idc = {
@@ -361,7 +361,7 @@ module "verified_access" {
 
 ```hcl
 module "verified_access" {
-  source = "git::https://github.com/microsoftexpert/tf-mod-aws-verified-access?ref=v1.0.0"
+  source = "git::https://github.com/microsoftexpert/terraform-aws-verified-access?ref=v1.0.0"
 
   trust_providers = {
     okta = {
@@ -507,7 +507,7 @@ endpoints = {
 
 ```hcl
 module "kms" {
-  source      = "git::https://github.com/microsoftexpert/tf-mod-aws-kms?ref=v1.0.0"
+  source      = "git::https://github.com/microsoftexpert/terraform-aws-kms?ref=v1.0.0"
   description = "CMK for Verified Access group policies"
 }
 
@@ -556,7 +556,7 @@ endpoints = {
 
 ```hcl
 module "verified_access" {
-  source = "git::https://github.com/microsoftexpert/tf-mod-aws-verified-access?ref=v1.0.0"
+  source = "git::https://github.com/microsoftexpert/terraform-aws-verified-access?ref=v1.0.0"
 
   trust_providers = { okta = { policy_reference_name = "okta", trust_provider_type = "user", user_trust_provider_type = "oidc" } }
   groups          = { app = { policy_document = "permit(principal, action, resource);" } }
@@ -616,7 +616,7 @@ provider "aws" {
 }
 
 module "verified_access" {
-  source = "git::https://github.com/microsoftexpert/tf-mod-aws-verified-access?ref=v1.0.0"
+  source = "git::https://github.com/microsoftexpert/terraform-aws-verified-access?ref=v1.0.0"
 
   trust_providers = {
     okta = { policy_reference_name = "okta", trust_provider_type = "user", user_trust_provider_type = "oidc", tags = { Tier = "identity" } }
@@ -658,23 +658,23 @@ import {
 provider "aws" {} # single regional provider — Verified Access, ALB, and its regional ACM cert share it
 
 module "vpc" {
-  source = "git::https://github.com/microsoftexpert/tf-mod-aws-vpc?ref=v1.0.0"
+  source = "git::https://github.com/microsoftexpert/terraform-aws-vpc?ref=v1.0.0"
   name   = "core"
 }
 
 module "alb_sg" {
-  source = "git::https://github.com/microsoftexpert/tf-mod-aws-security-group?ref=v1.0.0"
+  source = "git::https://github.com/microsoftexpert/terraform-aws-security-group?ref=v1.0.0"
   name   = "core-alb-sg"
   vpc_id = module.vpc.vpc_id
 }
 
 module "cert" {
-  source      = "git::https://github.com/microsoftexpert/tf-mod-aws-acm?ref=v1.0.0"
+  source      = "git::https://github.com/microsoftexpert/terraform-aws-acm?ref=v1.0.0"
   domain_name = "app.internal.example.com"
 }
 
 module "alb" {
-  source             = "git::https://github.com/microsoftexpert/tf-mod-aws-lb?ref=v1.0.0"
+  source             = "git::https://github.com/microsoftexpert/terraform-aws-lb?ref=v1.0.0"
   name               = "ztna-app-alb"
   vpc_id             = module.vpc.vpc_id
   subnet_ids         = module.vpc.private_subnet_ids
@@ -687,13 +687,13 @@ module "alb" {
 }
 
 module "va_log_group" {
-  source = "git::https://github.com/microsoftexpert/tf-mod-aws-cloudwatch-log-group?ref=v1.0.0"
+  source = "git::https://github.com/microsoftexpert/terraform-aws-cloudwatch-log-group?ref=v1.0.0"
   name   = "/verified-access/core-ztna"
 }
 
 # This module — the Zero Trust boundary in front of the ALB
 module "verified_access" {
-  source = "git::https://github.com/microsoftexpert/tf-mod-aws-verified-access?ref=v1.0.0"
+  source = "git::https://github.com/microsoftexpert/terraform-aws-verified-access?ref=v1.0.0"
 
   instance_description = "core-ztna"
 
@@ -738,7 +738,7 @@ module "verified_access" {
 
 # DNS — CNAME the application domain to the generated endpoint_domain
 module "dns" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-route53-zone?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-route53-zone?ref=v1.0.0"
   zone_name = "internal.example.com"
   records = {
     app = { name = "app", type = "CNAME", ttl = 300, records = [module.verified_access.endpoint_domains["app"]] }
@@ -874,7 +874,7 @@ tags_all = { "DataClass" = "internal", "Environment" = "prod" }
 | A Cedar policy that "looks right" grants more/less access than intended | Cedar syntax/semantics error — `terraform apply` does not lint Cedar | Validate the policy in the AWS console's Verified Access policy validator (or `cedar` CLI) before applying |
 | `endpoints[*].verified_access_group_key` not found | A key referenced in `endpoints` is absent from `groups` | Fix the key string — the module resolves keys to the group's `id` |
 | Endpoint create hangs/fails referencing the trust provider | Trust provider not yet attached when Cedar tries to evaluate `context.<name>.*` | Confirm the attachment resource completed first — the module already `depends_on`s it, but a partially-applied state can still surface this on a targeted apply |
-| `CertificateNotFound` / wrong-region cert on an endpoint | ACM cert is in a Region other than this module's | Issue the cert in the **same Region** via `tf-mod-aws-acm` (regional, no us-east-1 coupling here) |
+| `CertificateNotFound` / wrong-region cert on an endpoint | ACM cert is in a Region other than this module's | Issue the cert in the **same Region** via `terraform-aws-acm` (regional, no us-east-1 coupling here) |
 | Tag drift on every plan | A tag also set by provider `default_tags` with a different value | Let resource tags win, or remove the overlap from `default_tags` |
 | Credential / `NoCredentialProviders` errors | Provider chain not configured | Set `AWS_PROFILE` / SSO / OIDC at the root; the module carries no credentials |
 | `client_secret` shows as `(sensitive value)` in plan | Expected — the aws provider schema marks OIDC `client_secret` fields sensitive | Not an error; the value is still applied correctly, just redacted from console output |
@@ -888,7 +888,7 @@ tags_all = { "DataClass" = "internal", "Environment" = "prod" }
 - [Create an OIDC trust provider](https://docs.aws.amazon.com/verified-access/latest/ug/user-trust.html) · [Create a device-based trust provider](https://docs.aws.amazon.com/verified-access/latest/ug/device-trust.html)
 - [Verified Access policies (Cedar)](https://docs.aws.amazon.com/verified-access/latest/ug/auth-policies.html) · [Verified Access trust data](https://docs.aws.amazon.com/verified-access/latest/ug/trust-data-third-party-trust.html)
 - Terraform: [`aws_verifiedaccess_instance`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/verifiedaccess_instance) · [`aws_verifiedaccess_trust_provider`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/verifiedaccess_trust_provider) · [`aws_verifiedaccess_group`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/verifiedaccess_group) · [`aws_verifiedaccess_endpoint`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/verifiedaccess_endpoint) · [`aws_verifiedaccess_instance_logging_configuration`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/verifiedaccess_instance_logging_configuration)
-- Sibling modules: `tf-mod-aws-acm`, `tf-mod-aws-lb`, `tf-mod-aws-vpc`, `tf-mod-aws-security-group`, `tf-mod-aws-network-interface`, `tf-mod-aws-kms`, `tf-mod-aws-cloudwatch-log-group`, `tf-mod-aws-route53-zone`
+- Sibling modules: `terraform-aws-acm`, `terraform-aws-lb`, `terraform-aws-vpc`, `terraform-aws-security-group`, `terraform-aws-network-interface`, `terraform-aws-kms`, `terraform-aws-cloudwatch-log-group`, `terraform-aws-route53-zone`
 - Module internals: `SCOPE.md`
 
 ---

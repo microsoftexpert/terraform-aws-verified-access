@@ -23,7 +23,7 @@ terraform {
 # `domain_certificate_arn` must be a regional cert in the SAME Region as this module.
 #
 # module "verified_access" {
-# source = "git::https://github.com/microsoftexpert/tf-mod-aws-verified-access?ref=v1.0.0"
+# source = "git::https://github.com/microsoftexpert/terraform-aws-verified-access?ref=v1.0.0"
 # # inherits the default `aws` provider (whatever Region it points at)
 # instance_description = "core-ztna"
 #...

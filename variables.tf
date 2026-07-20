@@ -76,7 +76,7 @@ Access is fail-closed without one.
  instead of a browser-redirect OIDC flow.
  - sse_specification: { customer_managed_key_enabled, kms_key_arn } — encrypts this
  trust provider's OIDC secrets/config at rest with a CMK. Wire
- kms_key_arn from tf-mod-aws-kms. Null uses the AWS-owned key.
+ kms_key_arn from terraform-aws-kms. Null uses the AWS-owned key.
  - tags: extra tags merged over module tags for this trust provider.
 EOT
  type = map(object({
@@ -157,7 +157,7 @@ out of. Supply an explicit Cedar permit policy to grant access.
  cannot lint Cedar syntax or semantics.
  - sse_configuration: { customer_managed_key_enabled, kms_key_arn } — encrypts this
  group's Cedar policy at rest with a CMK. Wire kms_key_arn
- from tf-mod-aws-kms. Null uses the AWS-owned key.
+ from terraform-aws-kms. Null uses the AWS-owned key.
  - tags: extra tags merged over module tags for this group.
 EOT
  type = map(object({
@@ -196,22 +196,22 @@ accepts) so it is not exposed here.
  supported endpoint_type values.
  - domain_certificate_arn: ACM certificate ARN (regional — same Region as this
  module) whose CN matches application_domain. Wire
- from tf-mod-aws-acm. Required for both supported
+ from terraform-aws-acm. Required for both supported
  endpoint_type values.
  - endpoint_domain_prefix: custom subdomain prepended to the AWS-generated
  endpoint_domain. Required by the provider — FORCE-NEW.
  - description: optional human-readable description.
  - security_group_ids: security groups applied to the endpoint's ENIs. Wire
- from tf-mod-aws-security-group.
+ from terraform-aws-security-group.
  - load_balancer_options: required when endpoint_type = "load-balancer".
- { load_balancer_arn (FORCE-NEW, wire from tf-mod-aws-lb),
+ { load_balancer_arn (FORCE-NEW, wire from terraform-aws-lb),
  port, protocol ("http"|"https", default "https"),
- subnet_ids (wire from tf-mod-aws-vpc),
+ subnet_ids (wire from terraform-aws-vpc),
  port_range = { from_port, to_port } for a multi-port
  range instead of a single port }.
  - network_interface_options: required when endpoint_type = "network-interface".
  { network_interface_id (FORCE-NEW, wire from
- tf-mod-aws-network-interface), port,
+ terraform-aws-network-interface), port,
  protocol ("http"|"https", default "https"),
  port_range = { from_port, to_port } }.
  - policy_document: endpoint-level Cedar policy, evaluated in addition to
@@ -219,7 +219,7 @@ accepts) so it is not exposed here.
  extra restriction beyond the group policy.
  - sse_specification: { customer_managed_key_enabled, kms_key_arn } —
  encrypts this endpoint's Cedar policy at rest with a
- CMK. Wire kms_key_arn from tf-mod-aws-kms.
+ CMK. Wire kms_key_arn from terraform-aws-kms.
  - verified_access_group_key: key into var.groups — internal wiring, not an AWS
  argument — that this endpoint attaches to.
  - tags: extra tags merged over module tags for this endpoint.
@@ -311,11 +311,11 @@ opt out with enabled=false.
  - log_version: logging schema version (e.g. "ocsf-1.0.0-rc.2"). Null
  uses the AWS default version.
  - cloudwatch_logs: { enabled (default true when block is set), log_group } — wire
- log_group from tf-mod-aws-cloudwatch-log-group.
+ log_group from terraform-aws-cloudwatch-log-group.
  - kinesis_data_firehose: { enabled (default true when block is set), delivery_stream }
- — wire delivery_stream from tf-mod-aws-kinesis-firehose.
+ — wire delivery_stream from terraform-aws-kinesis-firehose.
  - s3: { enabled (default true when block is set), bucket_name, bucket_owner, prefix }
- — wire bucket_name from tf-mod-aws-s3-bucket (log-archive). The bucket
+ — wire bucket_name from terraform-aws-s3-bucket (log-archive). The bucket
  policy must already grant the Verified Access log-delivery principal
  write access, or the apply fails.
 

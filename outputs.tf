@@ -53,7 +53,7 @@ output "group_ids" {
 output "group_arns" {
  description = <<EOT
 Map of group key => ARN (verifiedaccess_group_arn) — the cross-resource reference
-type for this module. Consumed by tf-mod-aws-kms grant scoping and any IAM policy
+type for this module. Consumed by terraform-aws-kms grant scoping and any IAM policy
 condition that needs to name a specific Verified Access group.
 EOT
  value = { for k, g in aws_verifiedaccess_group.this: k => g.verifiedaccess_group_arn }
@@ -74,7 +74,7 @@ output "endpoint_ids" {
 }
 
 output "endpoint_domains" {
- description = "Map of endpoint key => generated endpoint_domain. Wire into tf-mod-aws-route53-zone as the CNAME target for each application_domain."
+ description = "Map of endpoint key => generated endpoint_domain. Wire into terraform-aws-route53-zone as the CNAME target for each application_domain."
  value = { for k, e in aws_verifiedaccess_endpoint.this: k => e.endpoint_domain }
 }
 

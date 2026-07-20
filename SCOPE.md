@@ -1,4 +1,4 @@
-# tf-mod-aws-verified-access — SCOPE
+# terraform-aws-verified-access — SCOPE
 
 Composite module for AWS Verified Access — the ZTNA (Zero Trust Network Access)
 service that replaces a traditional corporate VPN for private application access. It
@@ -33,20 +33,20 @@ the provider today:
 
 Referenced by `id`/`arn`, never created here:
 
-- ACM certificate — `domain_certificate_arn` (from `tf-mod-aws-acm`, regional —
+- ACM certificate — `domain_certificate_arn` (from `terraform-aws-acm`, regional —
   the endpoint is a regional resource, not a CloudFront/us-east-1 one)
-- Application Load Balancer — `load_balancer_arn` (from `tf-mod-aws-lb`, for
+- Application Load Balancer — `load_balancer_arn` (from `terraform-aws-lb`, for
   `endpoint_type = "load-balancer"`)
-- ENI — `network_interface_id` (from `tf-mod-aws-network-interface`, for
+- ENI — `network_interface_id` (from `terraform-aws-network-interface`, for
   `endpoint_type = "network-interface"`)
-- Security group(s) — `security_group_ids` (from `tf-mod-aws-security-group`)
-- Subnet IDs — `load_balancer_options.subnet_ids` (from `tf-mod-aws-vpc`)
+- Security group(s) — `security_group_ids` (from `terraform-aws-security-group`)
+- Subnet IDs — `load_balancer_options.subnet_ids` (from `terraform-aws-vpc`)
 - KMS CMK — `sse_configuration.kms_key_arn` / `sse_specification.kms_key_arn`
-  (from `tf-mod-aws-kms`, for group/endpoint/trust-provider encryption at rest)
+  (from `terraform-aws-kms`, for group/endpoint/trust-provider encryption at rest)
 - CloudWatch Log Group — `logging_configuration.cloudwatch_logs.log_group`
-  (from `tf-mod-aws-cloudwatch-log-group`)
+  (from `terraform-aws-cloudwatch-log-group`)
 - Kinesis Data Firehose delivery stream / S3 bucket — external log destinations
-  (from `tf-mod-aws-kinesis-firehose` / `tf-mod-aws-s3-bucket`)
+  (from `terraform-aws-kinesis-firehose` / `terraform-aws-s3-bucket`)
 - IAM Identity Center — the `iam-identity-center` user-trust-provider type consumes
   the account's existing IAM Identity Center instance; not created here
 - Third-party IdP (Okta/Azure AD/etc.) and third-party device-trust vendor (Jamf/
@@ -57,16 +57,16 @@ Referenced by `id`/`arn`, never created here:
 
 | Input | Type | Source module |
 |---|---|---|
-| `endpoints[*].load_balancer_options.load_balancer_arn` | `string` (ALB ARN) | `tf-mod-aws-lb` |
-| `endpoints[*].load_balancer_options.subnet_ids` | `list(string)` | `tf-mod-aws-vpc` |
-| `endpoints[*].network_interface_options.network_interface_id` | `string` (ENI id) | `tf-mod-aws-network-interface` |
-| `endpoints[*].domain_certificate_arn` | `string` (ACM cert ARN, regional) | `tf-mod-aws-acm` |
-| `endpoints[*].security_group_ids` | `list(string)` | `tf-mod-aws-security-group` |
-| `endpoints[*].sse_specification.kms_key_arn`, `groups[*].sse_configuration.kms_key_arn`, `trust_providers[*].sse_specification.kms_key_arn` | `string` (CMK ARN) | `tf-mod-aws-kms` |
-| `logging_configuration.cloudwatch_logs.log_group` | `string` (log group name/ARN) | `tf-mod-aws-cloudwatch-log-group` |
+| `endpoints[*].load_balancer_options.load_balancer_arn` | `string` (ALB ARN) | `terraform-aws-lb` |
+| `endpoints[*].load_balancer_options.subnet_ids` | `list(string)` | `terraform-aws-vpc` |
+| `endpoints[*].network_interface_options.network_interface_id` | `string` (ENI id) | `terraform-aws-network-interface` |
+| `endpoints[*].domain_certificate_arn` | `string` (ACM cert ARN, regional) | `terraform-aws-acm` |
+| `endpoints[*].security_group_ids` | `list(string)` | `terraform-aws-security-group` |
+| `endpoints[*].sse_specification.kms_key_arn`, `groups[*].sse_configuration.kms_key_arn`, `trust_providers[*].sse_specification.kms_key_arn` | `string` (CMK ARN) | `terraform-aws-kms` |
+| `logging_configuration.cloudwatch_logs.log_group` | `string` (log group name/ARN) | `terraform-aws-cloudwatch-log-group` |
 
 > **Foundation-adjacent module** — Verified Access sits at the network-access edge; it
-> depends on ACM, VPC/security groups, KMS, and (for load-balancer endpoints) `tf-mod-aws-lb`
+> depends on ACM, VPC/security groups, KMS, and (for load-balancer endpoints) `terraform-aws-lb`
 > already being deployed, but nothing downstream depends on it structurally (it is a
 > terminal/edge module in the dependency graph, alongside CloudFront/WAFv2).
 
@@ -119,7 +119,7 @@ caller's behalf for these resources.
 - **DNS delegation for `load-balancer`/`network-interface` endpoints.** The generated
   `endpoint_domain` (`<endpoint_domain_prefix>.<instance-subdomain>.vai.<region>....`)
   needs a CNAME from the caller's own `application_domain` — provisioned in
-  `tf-mod-aws-route53-zone`, not here.
+  `terraform-aws-route53-zone`, not here.
 
 ## Emits
 
@@ -130,9 +130,9 @@ caller's behalf for these resources.
 | `name_servers` | Instance-level name servers backing CIDR endpoints | DNS diagnostics |
 | `trust_provider_ids` | Map of trust-provider key → id | attachment wiring, audit |
 | `group_ids` | Map of group key → id | endpoint wiring |
-| `group_arns` | Map of group key → ARN (`verifiedaccess_group_arn`) | `tf-mod-aws-kms` grant scoping, IAM policy conditions |
+| `group_arns` | Map of group key → ARN (`verifiedaccess_group_arn`) | `terraform-aws-kms` grant scoping, IAM policy conditions |
 | `endpoint_ids` | Map of endpoint key → id | audit, DNS automation |
-| `endpoint_domains` | Map of endpoint key → generated `endpoint_domain` | `tf-mod-aws-route53-zone` (CNAME target) |
+| `endpoint_domains` | Map of endpoint key → generated `endpoint_domain` | `terraform-aws-route53-zone` (CNAME target) |
 | `endpoint_device_validation_domains` | Map of endpoint key → device-validation domain (null unless a device trust provider is attached) | device-trust vendor DNS validation |
 | `tags_all` | All tags incl. provider `default_tags`, from the instance | governance/audit |
 
@@ -183,7 +183,7 @@ caller's behalf for these resources.
   destination log group/bucket/stream is NOT created or IAM-authorized by this
   module — the S3 bucket policy / CloudWatch Logs resource policy / Firehose IAM role
   granting the Verified Access log-delivery principal write access must already exist
-  (same eventual-consistency gotcha as ALB access logging in `tf-mod-aws-lb`).
+  (same eventual-consistency gotcha as ALB access logging in `terraform-aws-lb`).
 - **`endpoint_domain_prefix` and `attachment_type` are effectively FORCE-NEW.** The
   module hard-codes `attachment_type = "vpc"` (the only value the provider currently
   accepts) rather than exposing it as a variable, to keep the caller surface honest
@@ -201,7 +201,7 @@ caller's behalf for these resources.
 
 | Posture | Default | Opt-out |
 |---|---|---|
-| Access logging | **`logging_configuration.enabled = true`** — at least one of `cloudwatch_logs`/`kinesis_data_firehose`/`s3` must be supplied (validation enforces this, mirroring `tf-mod-aws-lb`'s `access_logs` pattern) | `logging_configuration.enabled = false` (discouraged — removes the only audit trail of ZTNA access decisions) |
+| Access logging | **`logging_configuration.enabled = true`** — at least one of `cloudwatch_logs`/`kinesis_data_firehose`/`s3` must be supplied (validation enforces this, mirroring `terraform-aws-lb`'s `access_logs` pattern) | `logging_configuration.enabled = false` (discouraged — removes the only audit trail of ZTNA access decisions) |
 | Trust-context in logs | `include_trust_context = true` — device/identity claims are included in every log line for investigative auditability | `include_trust_context = false` |
 | Group/endpoint policy | **no baked-in default policy** — AWS's native fail-closed behavior (`policy_document = null` denies all) is relied on rather than re-implemented; callers must supply an explicit Cedar `permit` policy to grant any access | n/a — there is no "open" default to opt out of |
 | Encryption at rest (group / endpoint / trust-provider Cedar policies & OIDC secrets) | AWS-owned key by default (`sse_configuration`/`sse_specification` omitted); CMK wiring is a first-class, documented option | supply `sse_configuration.kms_key_arn` / `sse_specification.kms_key_arn` with `customer_managed_key_enabled = true` |
@@ -212,18 +212,18 @@ caller's behalf for these resources.
 - One composite owns the instance, its trust provider(s), the instance-attachment
   join resource, group(s), endpoint(s), and the logging configuration so a caller
   gets one complete, logged, policy-gated Zero Trust boundary from a single module
-  call — mirroring `tf-mod-aws-lb`'s "one call, complete front end" philosophy.
+  call — mirroring `terraform-aws-lb`'s "one call, complete front end" philosophy.
 - Trust providers, groups, and endpoints are each `for_each` over `map(object(...))`
   keyed by a stable caller string — no `count` — so adding/removing one trust
   provider or application never re-indexes the others.
 - `endpoints[*].verified_access_group_key` is an internal wiring key (not an AWS
   argument) that lets the module resolve `aws_verifiedaccess_group.this[key].id`
   without requiring the caller to pre-compute ARNs/ids by hand — the same pattern
-  `tf-mod-aws-lb` uses for `target_group_key` in `listeners`/`listener_rules`.
+  `terraform-aws-lb` uses for `target_group_key` in `listeners`/`listener_rules`.
 - The attachment join resource (`aws_verifiedaccess_instance_trust_provider_attachment`)
   is rendered 1:1 from `var.trust_providers` (same keys) rather than as its own
   variable, because Casey's usage pattern always attaches every configured trust
   provider to the one instance the module manages — a separate attachment map would
   only add caller-facing complexity with no real flexibility gained.
-- ACM certificates are regional and referenced by `arn` from `tf-mod-aws-acm` — there
+- ACM certificates are regional and referenced by `arn` from `terraform-aws-acm` — there
   is no us-east-1 coupling for Verified Access (unlike CloudFront/WAFv2).
